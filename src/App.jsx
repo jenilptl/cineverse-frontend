@@ -29,7 +29,7 @@ export default function App() {
   const [logModalMovie, setLogModalMovie] = useState(null);
   const [addToListMovie, setAddToListMovie] = useState(null);
   const [backendMovies, setBackendMovies] = useState(null);
-  const [totalCatalogCount, setTotalCatalogCount] = useState(27842);
+  const [totalCatalogCount, setTotalCatalogCount] = useState(61341);
 
   const { diary, profile } = useFilmTracker();
 
