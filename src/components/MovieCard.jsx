@@ -39,10 +39,14 @@ export default function MovieCard({
     <article className="movie-card">
       <div className="poster-wrap">
         <img
-          src={movie.poster_path}
+          src={movie.poster_path || "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=500&q=80"}
           alt={`${movie.title} poster`}
           loading="lazy"
           className="poster-img"
+          onError={(e) => {
+            e.currentTarget.onerror = null;
+            e.currentTarget.src = "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=500&q=80";
+          }}
         />
         {isRecommendation && (
           <span className="match-badge">{showValue(movie.similarity)}% match</span>
