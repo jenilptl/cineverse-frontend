@@ -3,9 +3,23 @@ import { sampleMovies } from "../data/sampleMovies";
 
 const STORAGE_KEY = "reelmind_user_activity_v4";
 
-// Helper to look up a movie from sampleMovies by id
+// Runtime cache of movies looked up dynamically or logged from 27,842 catalog
+const runtimeMovieCache = new Map();
+sampleMovies.forEach((m) => runtimeMovieCache.set(Number(m.id), m));
+
+export function cacheMovie(movie) {
+  if (movie && movie.id) {
+    runtimeMovieCache.set(Number(movie.id), movie);
+  }
+}
+
+// Helper to look up a movie by id (from runtime cache or sampleMovies)
 export function findMovieById(id) {
-  return sampleMovies.find((m) => m.id === Number(id)) || null;
+  const numId = Number(id);
+  if (runtimeMovieCache.has(numId)) {
+    return runtimeMovieCache.get(numId);
+  }
+  return sampleMovies.find((m) => m.id === numId) || null;
 }
 
 // Initial seed data configured for Jenil Patel with verified movie IDs & 10 diary entries
@@ -254,8 +268,9 @@ export function FilmTrackerProvider({ children }) {
   }, [state.diary]);
 
   // Actions
-  function logFilm({ movieId, rating = null, review = "", watchDate, isRewatch = false, isLiked = false }) {
-    const movie = findMovieById(movieId);
+  function logFilm({ movieId, rating = null, review = "", watchDate, isRewatch = false, isLiked = false, movieData = null }) {
+    if (movieData) cacheMovie(movieData);
+    const movie = movieData || findMovieById(movieId);
     if (!movie) return;
 
     const newEntry = {
@@ -422,6 +437,7 @@ export function FilmTrackerProvider({ children }) {
     movieReviewsMap,
     ratingDistribution,
     logFilm,
+    cacheMovie,
     deleteDiaryEntry,
     updateDiaryEntry,
     updateFavorites,

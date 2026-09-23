@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Navbar from "../components/Navbar";
 import MovieCard from "../components/MovieCard";
 import MovieDetails from "../components/MovieDetails";
 import LogMovieModal from "../components/LogMovieModal";
 import AddToListModal from "../components/AddToListModal";
 import { sampleMovies } from "../data/sampleMovies";
+import { searchMovies } from "../config/api";
 import { Search, SlidersHorizontal, Film, RotateCcw } from "lucide-react";
 
 export const Route = createFileRoute("/movies")({
@@ -35,39 +36,76 @@ function MoviesPage() {
   const [selectedMovie, setSelectedMovie] = useState(null);
   const [logModalMovie, setLogModalMovie] = useState(null);
   const [addToListMovie, setAddToListMovie] = useState(null);
+  const [backendMovies, setBackendMovies] = useState(null);
+  const [totalCount, setTotalCount] = useState(27842);
+  const [isSearching, setIsSearching] = useState(false);
 
   const genres = ["All genres", ...new Set(sampleMovies.flatMap((m) => m.genres.split(", ")))].sort();
   const languages = ["All languages", ...new Set(sampleMovies.map((m) => m.original_language))].sort();
 
+  // Search live backend across 27,842 movies with debounce
+  useEffect(() => {
+    let isCancelled = false;
+    const timer = setTimeout(async () => {
+      if (filters.search.trim() || filters.genre !== "All genres") {
+        setIsSearching(true);
+        try {
+          const res = await searchMovies(filters.search.trim(), filters.genre, 100);
+          if (!isCancelled) {
+            if (res && Array.isArray(res.movies) && res.movies.length > 0) {
+              setBackendMovies(res.movies);
+              if (res.total) setTotalCount(res.total);
+            } else {
+              setBackendMovies([]);
+            }
+          }
+        } catch (e) {
+          if (!isCancelled) setBackendMovies(null);
+        } finally {
+          if (!isCancelled) setIsSearching(false);
+        }
+      } else {
+        setBackendMovies(null);
+        setTotalCount(27842);
+      }
+    }, 280);
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(timer);
+    };
+  }, [filters.search, filters.genre]);
+
   const filteredAndSortedMovies = useMemo(() => {
+    const source = backendMovies !== null ? backendMovies : sampleMovies;
     const q = filters.search.trim().toLowerCase();
     const minRating = filters.minimumRating === "Any rating" ? 0 : Number(filters.minimumRating);
 
-    const filtered = sampleMovies.filter((movie) => {
+    const filtered = source.filter((movie) => {
       const matchesText =
         !q ||
-        `${movie.title} ${movie.original_title} ${movie.genres}`.toLowerCase().includes(q);
-      const matchesGenre = filters.genre === "All genres" || movie.genres.includes(filters.genre);
+        `${movie.title} ${movie.original_title || ""} ${movie.genres || ""}`.toLowerCase().includes(q);
+      const matchesGenre = filters.genre === "All genres" || (movie.genres && movie.genres.includes(filters.genre));
       const matchesLanguage =
         filters.language === "All languages" || movie.original_language === filters.language;
-      const matchesRating = movie.vote_average >= minRating;
-      const matchesYear = !filters.releaseYear || movie.release_date.startsWith(filters.releaseYear);
+      const matchesRating = (movie.vote_average || 0) >= minRating;
+      const matchesYear = !filters.releaseYear || (movie.release_date && movie.release_date.startsWith(filters.releaseYear));
       return matchesText && matchesGenre && matchesLanguage && matchesRating && matchesYear;
     });
 
     // Sorting
     filtered.sort((a, b) => {
-      if (filters.sortBy === "rating-desc") return b.vote_average - a.vote_average;
-      if (filters.sortBy === "rating-asc") return a.vote_average - b.vote_average;
+      if (filters.sortBy === "rating-desc") return (b.vote_average || 0) - (a.vote_average || 0);
+      if (filters.sortBy === "rating-asc") return (a.vote_average || 0) - (b.vote_average || 0);
       if (filters.sortBy === "year-desc") return (b.release_date || "").localeCompare(a.release_date || "");
       if (filters.sortBy === "year-asc") return (a.release_date || "").localeCompare(b.release_date || "");
-      if (filters.sortBy === "title-asc") return a.title.localeCompare(b.title);
+      if (filters.sortBy === "title-asc") return (a.title || "").localeCompare(b.title || "");
       // default popularity-desc
       return (b.popularity || 0) - (a.popularity || 0);
     });
 
     return filtered;
-  }, [filters]);
+  }, [filters, backendMovies]);
 
   function updateFilter(name, value) {
     setFilters((prev) => ({ ...prev, [name]: value }));
@@ -75,6 +113,7 @@ function MoviesPage() {
 
   function resetFilters() {
     setFilters(defaultFilters);
+    setBackendMovies(null);
   }
 
   return (
@@ -87,11 +126,11 @@ function MoviesPage() {
             <span className="eyebrow"><Film size={12} /> Film Catalog</span>
             <h1>All Films</h1>
             <p>
-              Browse, filter, rate, and log all {sampleMovies.length} cinema titles in the ReelMind database.
+              Browse, filter, rate, and log cinema titles from the complete ReelMind {totalCount.toLocaleString()} film database.
             </p>
           </div>
           <div className="header-stat-pill">
-            <span>{filteredAndSortedMovies.length}</span> films matching
+            <span>{isSearching ? "Searching..." : filteredAndSortedMovies.length}</span> films matching
           </div>
         </header>
 
@@ -192,7 +231,13 @@ function MoviesPage() {
         </div>
 
         {/* Movie Results Grid */}
-        {filteredAndSortedMovies.length > 0 ? (
+        {isSearching ? (
+          <div className="message-state">
+            <span className="spinner" aria-hidden="true">✦</span>
+            <strong>Scanning 27,842 movies...</strong>
+            <p>Finding matching titles from the database.</p>
+          </div>
+        ) : filteredAndSortedMovies.length > 0 ? (
           <div className="movie-grid catalog-grid">
             {filteredAndSortedMovies.map((movie) => (
               <MovieCard

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useFilmTracker, findMovieById } from "../context/FilmTrackerContext";
 import { sampleMovies } from "../data/sampleMovies";
+import { searchMovies } from "../config/api";
 import StarRating from "./StarRating";
 import { toast } from "sonner";
 import { Heart, Repeat, Calendar, Film, X, Check, Search } from "lucide-react";
@@ -15,6 +16,7 @@ export default function LogMovieModal({
 
   const [selectedMovie, setSelectedMovie] = useState(initialMovie);
   const [searchQuery, setSearchQuery] = useState("");
+  const [liveSearchResults, setLiveSearchResults] = useState([]);
   const [rating, setRating] = useState(initialRating || 0);
   const [review, setReview] = useState("");
   const [watchDate, setWatchDate] = useState(() => new Date().toISOString().split("T")[0]);
@@ -37,15 +39,58 @@ export default function LogMovieModal({
       setReview("");
       setIsLiked(false);
       setIsRewatch(false);
+      setSearchQuery("");
+      setLiveSearchResults([]);
     }
   }, [initialMovie, isOpen]);
+
+  // Live search across full catalog
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setLiveSearchResults([]);
+      return;
+    }
+
+    let isCancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const res = await searchMovies(searchQuery.trim(), "All genres", 8);
+        if (!isCancelled) {
+          if (res && Array.isArray(res.movies) && res.movies.length > 0) {
+            setLiveSearchResults(res.movies);
+          } else {
+            setLiveSearchResults(
+              sampleMovies
+                .filter((m) => m.title.toLowerCase().includes(searchQuery.toLowerCase()))
+                .slice(0, 6)
+            );
+          }
+        }
+      } catch (e) {
+        if (!isCancelled) {
+          setLiveSearchResults(
+            sampleMovies
+              .filter((m) => m.title.toLowerCase().includes(searchQuery.toLowerCase()))
+              .slice(0, 6)
+          );
+        }
+      }
+    }, 250);
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(timer);
+    };
+  }, [searchQuery]);
 
   if (!isOpen) return null;
 
   const movieSearchResults = searchQuery.trim()
-    ? sampleMovies
-        .filter((m) => m.title.toLowerCase().includes(searchQuery.toLowerCase()))
-        .slice(0, 6)
+    ? liveSearchResults.length > 0
+      ? liveSearchResults
+      : sampleMovies
+          .filter((m) => m.title.toLowerCase().includes(searchQuery.toLowerCase()))
+          .slice(0, 6)
     : [];
 
   function handleSubmit(e) {
@@ -62,6 +107,7 @@ export default function LogMovieModal({
       watchDate,
       isRewatch,
       isLiked,
+      movieData: selectedMovie,
     });
 
     // Handle lists
