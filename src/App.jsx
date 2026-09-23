@@ -9,6 +9,7 @@ import LogMovieModal from "./components/LogMovieModal";
 import AddToListModal from "./components/AddToListModal";
 import Recommendations from "./components/Recommendations";
 import { sampleMovies } from "./data/sampleMovies";
+import { searchMovies } from "./config/api";
 import { useFilmTracker, findMovieById } from "./context/FilmTrackerContext";
 import { Film, Calendar, Heart, Repeat, Plus, ArrowRight, Sparkles } from "lucide-react";
 
@@ -27,6 +28,8 @@ export default function App() {
   const [selectedMovie, setSelectedMovie] = useState(null);
   const [logModalMovie, setLogModalMovie] = useState(null);
   const [addToListMovie, setAddToListMovie] = useState(null);
+  const [backendMovies, setBackendMovies] = useState(null);
+  const [totalCatalogCount, setTotalCatalogCount] = useState(27842);
 
   const { diary, profile } = useFilmTracker();
 
@@ -34,35 +37,58 @@ export default function App() {
   const languages = ["All languages", ...new Set(sampleMovies.map((movie) => movie.original_language))].sort();
 
   const visibleMovies = useMemo(() => {
+    const sourceMovies = backendMovies && backendMovies.length > 0 ? backendMovies : sampleMovies;
     const query = activeSearch.trim().toLowerCase();
     const minimumRating = filters.minimumRating === "Any rating" ? 0 : Number(filters.minimumRating);
 
-    return sampleMovies.filter((movie) => {
-      const matchesText = !query || `${movie.title} ${movie.original_title} ${movie.genres}`.toLowerCase().includes(query);
-      const matchesGenre = filters.genre === "All genres" || movie.genres.includes(filters.genre);
+    return sourceMovies.filter((movie) => {
+      const matchesText = !query || `${movie.title} ${movie.original_title || ""} ${movie.genres || ""}`.toLowerCase().includes(query);
+      const matchesGenre = filters.genre === "All genres" || (movie.genres && movie.genres.includes(filters.genre));
       const matchesLanguage = filters.language === "All languages" || movie.original_language === filters.language;
-      const matchesRating = movie.vote_average >= minimumRating;
-      const matchesYear = !filters.releaseYear || movie.release_date.startsWith(filters.releaseYear);
+      const matchesRating = (movie.vote_average || 0) >= minimumRating;
+      const matchesYear = !filters.releaseYear || (movie.release_date && movie.release_date.startsWith(filters.releaseYear));
       return matchesText && matchesGenre && matchesLanguage && matchesRating && matchesYear;
     });
-  }, [activeSearch, filters]);
+  }, [activeSearch, filters, backendMovies]);
 
-  function runSearch() {
+  async function runSearch(queryOverride, genreOverride) {
+    const query = queryOverride !== undefined ? queryOverride : searchText;
+    const genre = genreOverride !== undefined ? genreOverride : filters.genre;
+
     setIsLoading(true);
-    setTimeout(() => {
-      setActiveSearch(searchText);
+    setActiveSearch(query);
+
+    try {
+      const data = await searchMovies(query, genre, 50);
+      if (data && Array.isArray(data.movies) && data.movies.length > 0) {
+        setBackendMovies(data.movies);
+        if (data.total) setTotalCatalogCount(data.total);
+      } else {
+        setBackendMovies(null);
+      }
+    } catch (err) {
+      console.error("Backend search failed:", err);
+      setBackendMovies(null);
+    } finally {
       setIsLoading(false);
-    }, 300);
+    }
   }
 
   function clearFilters() {
     setFilters(defaultFilters);
     setSearchText("");
     setActiveSearch("");
+    setBackendMovies(null);
   }
 
   function updateFilter(name, value) {
-    setFilters((currentFilters) => ({ ...currentFilters, [name]: value }));
+    setFilters((currentFilters) => {
+      const updated = { ...currentFilters, [name]: value };
+      if (name === "genre" && (activeSearch || value !== "All genres")) {
+        runSearch(activeSearch, value);
+      }
+      return updated;
+    });
   }
 
   // User's recent watches for home page shelf
@@ -157,7 +183,7 @@ export default function App() {
               </p>
             </div>
             <div className="heading-right-group">
-              <span className="ticket-count">{visibleMovies.length.toString().padStart(2, "0")} / {sampleMovies.length.toString().padStart(2, "0")}</span>
+              <span className="ticket-count">{visibleMovies.length} / {backendMovies ? totalCatalogCount.toLocaleString() : sampleMovies.length}</span>
               <Link to="/movies" className="explore-all-button">
                 Browse All Films →
               </Link>
@@ -202,7 +228,7 @@ export default function App() {
           ) : visibleMovies.length > 0 ? (
             <MovieScroller
               movies={visibleMovies}
-              totalCount={sampleMovies.length}
+              totalCount={backendMovies ? totalCatalogCount : sampleMovies.length}
               onViewDetails={setSelectedMovie}
               onLogMovie={setLogModalMovie}
               onAddToList={setAddToListMovie}
