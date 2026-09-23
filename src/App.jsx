@@ -217,6 +217,7 @@ export default function App() {
         </section>
 
         <Recommendations
+          movieTitle={activeSearch.trim() || (selectedMovie ? selectedMovie.title : "The Dark Knight")}
           onViewDetails={setSelectedMovie}
           onLogMovie={setLogModalMovie}
           onAddToList={setAddToListMovie}

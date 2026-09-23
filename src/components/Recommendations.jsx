@@ -1,4 +1,6 @@
+import { useState, useEffect } from "react";
 import MovieCard from "./MovieCard";
+import { getRecommendations } from "../config/api";
 
 // ==================================================
 // CONNECT YOUR CLUSTERING MODEL HERE
@@ -110,21 +112,61 @@ const sampleRecommendations = [
   },
 ];
 
-export default function Recommendations({ onViewDetails, onLogMovie, onAddToList }) {
+export default function Recommendations({
+  movieTitle = "The Dark Knight",
+  onViewDetails,
+  onLogMovie,
+  onAddToList,
+}) {
+  const [recommendations, setRecommendations] = useState(sampleRecommendations);
+  const [loading, setLoading] = useState(false);
+  const [currentTitle, setCurrentTitle] = useState(movieTitle);
+
+  useEffect(() => {
+    if (movieTitle && movieTitle.trim()) {
+      setCurrentTitle(movieTitle.trim());
+    }
+  }, [movieTitle]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function fetchLiveRecommendations() {
+      setLoading(true);
+      const data = await getRecommendations(currentTitle, 10);
+      if (active) {
+        if (data && data.length > 0) {
+          setRecommendations(data);
+        }
+        setLoading(false);
+      }
+    }
+
+    fetchLiveRecommendations();
+
+    return () => {
+      active = false;
+    };
+  }, [currentTitle]);
+
   return (
     <section className="recommendation-section" id="discover">
       <div className="section-heading">
         <div>
           <p className="eyebrow"><span aria-hidden="true">✦</span> The algorithm speaks</p>
           <h2>Movies You Might Actually Like</h2>
-          <p>Apparently, the algorithm has opinions.</p>
+          <p>
+            {loading
+              ? `Consulting KMeans clustering model for "${currentTitle}"...`
+              : `Recommended for you based on "${currentTitle}".`}
+          </p>
         </div>
         <span className="reel-mark" aria-hidden="true">◉</span>
       </div>
       <div className="recommendation-grid">
-        {sampleRecommendations.map((movie) => (
+        {recommendations.map((movie) => (
           <MovieCard
-            key={movie.id}
+            key={movie.id || movie.title}
             movie={movie}
             onViewDetails={onViewDetails}
             onLogMovie={onLogMovie}
