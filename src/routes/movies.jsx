@@ -7,7 +7,7 @@ import LogMovieModal from "../components/LogMovieModal";
 import AddToListModal from "../components/AddToListModal";
 import { sampleMovies } from "../data/sampleMovies";
 import { searchMovies } from "../config/api";
-import { Search, SlidersHorizontal, Film, RotateCcw } from "lucide-react";
+import { Search, Film, RotateCcw, ChevronLeft, ChevronRight } from "lucide-react";
 
 export const Route = createFileRoute("/movies")({
   head: () => ({
@@ -15,7 +15,7 @@ export const Route = createFileRoute("/movies")({
       { title: "Browse All Films — ReelMind" },
       {
         name: "description",
-        content: "Explore, filter, and search the complete ReelMind film database.",
+        content: "Explore, filter, and search the complete 34,791+ ReelMind film database.",
       },
     ],
   }),
@@ -28,93 +28,154 @@ const defaultFilters = {
   language: "All languages",
   minimumRating: "Any rating",
   releaseYear: "",
-  sortBy: "popularity-desc",
+  sortBy: "id-asc", // User specified: start from smallest ID to biggest
 };
+
+const GENRES = [
+  "All genres",
+  "Action",
+  "Adventure",
+  "Animation",
+  "Comedy",
+  "Crime",
+  "Documentary",
+  "Drama",
+  "Family",
+  "Fantasy",
+  "History",
+  "Horror",
+  "Music",
+  "Mystery",
+  "Romance",
+  "Science Fiction",
+  "Thriller",
+  "War",
+  "Western",
+];
+
+const LANGUAGE_OPTIONS = [
+  { value: "All languages", label: "All languages" },
+  { value: "hi", label: "Hindi (hi)" },
+  { value: "te", label: "Telugu (te)" },
+  { value: "ta", label: "Tamil (ta)" },
+  { value: "ml", label: "Malayalam (ml)" },
+  { value: "kn", label: "Kannada (kn)" },
+  { value: "bn", label: "Bengali (bn)" },
+  { value: "mr", label: "Marathi (mr)" },
+  { value: "pa", label: "Punjabi (pa)" },
+  { value: "gu", label: "Gujarati (gu)" },
+  { value: "en", label: "English (en)" },
+  { value: "es", label: "Spanish (es)" },
+  { value: "fr", label: "French (fr)" },
+  { value: "ja", label: "Japanese (ja)" },
+  { value: "ko", label: "Korean (ko)" },
+  { value: "it", label: "Italian (it)" },
+  { value: "de", label: "German (de)" },
+  { value: "zh", label: "Chinese (zh)" },
+];
 
 function MoviesPage() {
   const [filters, setFilters] = useState(defaultFilters);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(34791);
+  const [moviesList, setMoviesList] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+
   const [selectedMovie, setSelectedMovie] = useState(null);
   const [logModalMovie, setLogModalMovie] = useState(null);
   const [addToListMovie, setAddToListMovie] = useState(null);
-  const [backendMovies, setBackendMovies] = useState(null);
-  const [totalCount, setTotalCount] = useState(27842);
-  const [isSearching, setIsSearching] = useState(false);
 
-  const genres = ["All genres", ...new Set(sampleMovies.flatMap((m) => m.genres.split(", ")))].sort();
-  const languages = ["All languages", ...new Set(sampleMovies.map((m) => m.original_language))].sort();
-
-  // Search live backend across 27,842 movies with debounce
+  // Fetch dynamic page from backend on mount and whenever filters or page change
   useEffect(() => {
     let isCancelled = false;
+    setIsLoading(true);
+
     const timer = setTimeout(async () => {
-      if (filters.search.trim() || filters.genre !== "All genres") {
-        setIsSearching(true);
-        try {
-          const res = await searchMovies(filters.search.trim(), filters.genre, 100);
-          if (!isCancelled) {
-            if (res && Array.isArray(res.movies) && res.movies.length > 0) {
-              setBackendMovies(res.movies);
-              if (res.total) setTotalCount(res.total);
-            } else {
-              setBackendMovies([]);
-            }
+      try {
+        const res = await searchMovies({
+          search: filters.search,
+          genre: filters.genre,
+          language: filters.language,
+          minimumRating: filters.minimumRating,
+          releaseYear: filters.releaseYear,
+          sortBy: filters.sortBy,
+          page: page,
+          limit: 24,
+        });
+
+        if (!isCancelled) {
+          if (res && Array.isArray(res.movies)) {
+            setMoviesList(res.movies);
+            if (res.total !== undefined) setTotalCount(res.total);
+            if (res.total_pages !== undefined) setTotalPages(res.total_pages);
+          } else {
+            // Graceful fallback to local sample movies if backend warming up
+            setMoviesList(sampleMovies.slice(0, 24));
           }
-        } catch (e) {
-          if (!isCancelled) setBackendMovies(null);
-        } finally {
-          if (!isCancelled) setIsSearching(false);
         }
-      } else {
-        setBackendMovies(null);
-        setTotalCount(27842);
+      } catch (err) {
+        if (!isCancelled) {
+          console.error("Failed to load catalog movies from backend:", err);
+          setMoviesList(sampleMovies.slice(0, 24));
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
       }
-    }, 280);
+    }, 220);
 
     return () => {
       isCancelled = true;
       clearTimeout(timer);
     };
-  }, [filters.search, filters.genre]);
-
-  const filteredAndSortedMovies = useMemo(() => {
-    const source = backendMovies !== null ? backendMovies : sampleMovies;
-    const q = filters.search.trim().toLowerCase();
-    const minRating = filters.minimumRating === "Any rating" ? 0 : Number(filters.minimumRating);
-
-    const filtered = source.filter((movie) => {
-      const matchesText =
-        !q ||
-        `${movie.title} ${movie.original_title || ""} ${movie.genres || ""}`.toLowerCase().includes(q);
-      const matchesGenre = filters.genre === "All genres" || (movie.genres && movie.genres.includes(filters.genre));
-      const matchesLanguage =
-        filters.language === "All languages" || movie.original_language === filters.language;
-      const matchesRating = (movie.vote_average || 0) >= minRating;
-      const matchesYear = !filters.releaseYear || (movie.release_date && movie.release_date.startsWith(filters.releaseYear));
-      return matchesText && matchesGenre && matchesLanguage && matchesRating && matchesYear;
-    });
-
-    // Sorting
-    filtered.sort((a, b) => {
-      if (filters.sortBy === "rating-desc") return (b.vote_average || 0) - (a.vote_average || 0);
-      if (filters.sortBy === "rating-asc") return (a.vote_average || 0) - (b.vote_average || 0);
-      if (filters.sortBy === "year-desc") return (b.release_date || "").localeCompare(a.release_date || "");
-      if (filters.sortBy === "year-asc") return (a.release_date || "").localeCompare(b.release_date || "");
-      if (filters.sortBy === "title-asc") return (a.title || "").localeCompare(b.title || "");
-      // default popularity-desc
-      return (b.popularity || 0) - (a.popularity || 0);
-    });
-
-    return filtered;
-  }, [filters, backendMovies]);
+  }, [filters, page]);
 
   function updateFilter(name, value) {
     setFilters((prev) => ({ ...prev, [name]: value }));
+    setPage(1); // Reset to page 1 on filter changes
   }
 
   function resetFilters() {
     setFilters(defaultFilters);
-    setBackendMovies(null);
+    setPage(1);
   }
+
+  function handlePageChange(newPage) {
+    if (newPage >= 1 && newPage <= totalPages && newPage !== page) {
+      setPage(newPage);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
+
+  // Calculate window of page numbers to show: e.g. [1, '...', 4, 5, 6, '...', 1450]
+  const paginationRange = useMemo(() => {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+
+    const delta = 2;
+    const range = [];
+    const left = Math.max(2, page - delta);
+    const right = Math.min(totalPages - 1, page + delta);
+
+    for (let i = left; i <= right; i++) {
+      range.push(i);
+    }
+
+    if (left > 2) {
+      range.unshift("...");
+    }
+    if (right < totalPages - 1) {
+      range.push("...");
+    }
+
+    range.unshift(1);
+    range.push(totalPages);
+
+    return range;
+  }, [page, totalPages]);
 
   return (
     <div className="app-shell">
@@ -130,7 +191,7 @@ function MoviesPage() {
             </p>
           </div>
           <div className="header-stat-pill">
-            <span>{isSearching ? "Searching..." : filteredAndSortedMovies.length}</span> films matching
+            <span>{isLoading ? "Loading..." : totalCount.toLocaleString()}</span> films in catalog
           </div>
         </header>
 
@@ -142,7 +203,7 @@ function MoviesPage() {
               <input
                 type="text"
                 className="catalog-search-input"
-                placeholder="Search by title or genre..."
+                placeholder="Search across 34,791 movies by title or keyword..."
                 value={filters.search}
                 onChange={(e) => updateFilter("search", e.target.value)}
               />
@@ -155,6 +216,8 @@ function MoviesPage() {
                 onChange={(e) => updateFilter("sortBy", e.target.value)}
                 className="filter-select"
               >
+                <option value="id-asc">ID (Smallest to Big)</option>
+                <option value="id-desc">ID (Biggest to Smallest)</option>
                 <option value="popularity-desc">Most Popular</option>
                 <option value="rating-desc">Highest Rated</option>
                 <option value="rating-asc">Lowest Rated</option>
@@ -173,7 +236,7 @@ function MoviesPage() {
                 onChange={(e) => updateFilter("genre", e.target.value)}
                 className="filter-select"
               >
-                {genres.map((g) => (
+                {GENRES.map((g) => (
                   <option key={g} value={g}>{g}</option>
                 ))}
               </select>
@@ -186,8 +249,8 @@ function MoviesPage() {
                 onChange={(e) => updateFilter("language", e.target.value)}
                 className="filter-select"
               >
-                {languages.map((l) => (
-                  <option key={l} value={l}>{l}</option>
+                {LANGUAGE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>
             </label>
@@ -204,6 +267,7 @@ function MoviesPage() {
                 <option value="8.0">8.0+ Stars</option>
                 <option value="7.5">7.5+ Stars</option>
                 <option value="7.0">7.0+ Stars</option>
+                <option value="6.0">6.0+ Stars</option>
               </select>
             </label>
 
@@ -211,7 +275,7 @@ function MoviesPage() {
               <span>Year</span>
               <input
                 type="text"
-                placeholder="e.g. 2014"
+                placeholder="e.g. 2023"
                 maxLength={4}
                 value={filters.releaseYear}
                 onChange={(e) => updateFilter("releaseYear", e.target.value)}
@@ -231,24 +295,78 @@ function MoviesPage() {
         </div>
 
         {/* Movie Results Grid */}
-        {isSearching ? (
+        {isLoading ? (
           <div className="message-state">
             <span className="spinner" aria-hidden="true">✦</span>
-            <strong>Scanning 27,842 movies...</strong>
-            <p>Finding matching titles from the database.</p>
+            <strong>Loading ReelMind Catalog...</strong>
+            <p>Fetching cinema titles from the database.</p>
           </div>
-        ) : filteredAndSortedMovies.length > 0 ? (
-          <div className="movie-grid catalog-grid">
-            {filteredAndSortedMovies.map((movie) => (
-              <MovieCard
-                key={movie.id}
-                movie={movie}
-                onViewDetails={setSelectedMovie}
-                onLogMovie={setLogModalMovie}
-                onAddToList={setAddToListMovie}
-              />
-            ))}
-          </div>
+        ) : moviesList.length > 0 ? (
+          <>
+            <div className="movie-grid catalog-grid">
+              {moviesList.map((movie) => (
+                <MovieCard
+                  key={movie.id}
+                  movie={movie}
+                  onViewDetails={setSelectedMovie}
+                  onLogMovie={setLogModalMovie}
+                  onAddToList={setAddToListMovie}
+                />
+              ))}
+            </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <nav className="catalog-pagination" aria-label="Catalog pagination">
+                <div className="pagination-controls-row">
+                  <button
+                    type="button"
+                    className="pagination-btn prev-btn"
+                    onClick={() => handlePageChange(page - 1)}
+                    disabled={page <= 1 || isLoading}
+                    aria-label="Previous page"
+                  >
+                    <ChevronLeft size={16} /> Previous
+                  </button>
+
+                  <div className="pagination-numbers">
+                    {paginationRange.map((p, idx) =>
+                      p === "..." ? (
+                        <span key={`dots-${idx}`} className="pagination-ellipsis">
+                          …
+                        </span>
+                      ) : (
+                        <button
+                          key={p}
+                          type="button"
+                          className={`pagination-num-btn ${p === page ? "active-page" : ""}`}
+                          onClick={() => handlePageChange(p)}
+                          disabled={isLoading}
+                          aria-current={p === page ? "page" : undefined}
+                        >
+                          {p}
+                        </button>
+                      )
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    className="pagination-btn next-btn"
+                    onClick={() => handlePageChange(page + 1)}
+                    disabled={page >= totalPages || isLoading}
+                    aria-label="Next page"
+                  >
+                    Next <ChevronRight size={16} />
+                  </button>
+                </div>
+
+                <div className="pagination-info">
+                  Page <strong>{page}</strong> of <strong>{totalPages.toLocaleString()}</strong> ({totalCount.toLocaleString()} total films)
+                </div>
+              </nav>
+            )}
+          </>
         ) : (
           <div className="message-state">
             <span className="empty-icon" aria-hidden="true">◌</span>
@@ -263,7 +381,7 @@ function MoviesPage() {
 
       <footer className="site-footer">
         <span>© 2026 ReelMind</span>
-        <span>Catalog & Clustering Engine.</span>
+        <span>Complete Catalog & Clustering Engine.</span>
         <span aria-hidden="true">▰ · ▰ · ▰</span>
       </footer>
 

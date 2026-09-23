@@ -35,13 +35,45 @@ export async function getRecommendations(title = "The Dark Knight", n = 10) {
 }
 
 // ===============================
-// SEARCH & BROWSE 27,842 MOVIES
+// SEARCH & BROWSE FULL CATALOG (34,791+ MOVIES)
 // ===============================
-export async function searchMovies(search = "", genre = "All genres", limit = 50, page = 1) {
+export async function searchMovies(
+  searchOrOptions = "",
+  genre = "All genres",
+  limit = 24,
+  page = 1
+) {
   try {
+    let search = "";
+    let language = "All languages";
+    let minRating = 0;
+    let releaseYear = "";
+    let sortBy = "id-asc";
+
+    if (typeof searchOrOptions === "object" && searchOrOptions !== null) {
+      search = searchOrOptions.search || "";
+      genre = searchOrOptions.genre || "All genres";
+      language = searchOrOptions.language || "All languages";
+      minRating = searchOrOptions.minimumRating || searchOrOptions.min_rating || 0;
+      releaseYear = searchOrOptions.releaseYear || searchOrOptions.year || "";
+      sortBy = searchOrOptions.sortBy || searchOrOptions.sort_by || "id-asc";
+      page = searchOrOptions.page || 1;
+      limit = searchOrOptions.limit || 24;
+    } else {
+      search = searchOrOptions;
+    }
+
     const params = new URLSearchParams();
     if (search && search.trim()) params.append("search", search.trim());
     if (genre && genre !== "All genres") params.append("genre", genre);
+    if (language && language !== "All languages") params.append("language", language);
+
+    const parsedRating = minRating === "Any rating" ? 0 : Number(minRating);
+    if (parsedRating && parsedRating > 0) params.append("min_rating", String(parsedRating));
+
+    if (releaseYear && String(releaseYear).trim()) params.append("year", String(releaseYear).trim());
+    if (sortBy) params.append("sort_by", sortBy);
+
     params.append("limit", String(limit));
     params.append("page", String(page));
 
@@ -52,7 +84,7 @@ export async function searchMovies(search = "", genre = "All genres", limit = 50
     }
 
     const data = await response.json();
-    return data; // Returns { total, page, limit, movies: [...] }
+    return data; // Returns { total, page, limit, total_pages, movies: [...] }
   } catch (error) {
     console.error("Failed to fetch movies from backend:", error);
     return null;
