@@ -3,7 +3,7 @@
 // CHANGE THIS HERE
 // Replace this URL with your backend URL when your ML service is ready.
 // ===============================
-export const API_URL = "https://cineverse-movie-recommender-y7dl.onrender.com/";
+export const API_URL = "https://cineverse-movie-recommender-y7dl.onrender.com";
 
 // ===============================
 // CONNECT YOUR BACKEND HERE
