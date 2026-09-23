@@ -35,7 +35,7 @@ export async function getRecommendations(title = "The Dark Knight", n = 10) {
 }
 
 // ===============================
-// SEARCH & BROWSE FULL CATALOG (61,000+ MOVIES)
+// SEARCH & BROWSE FULL CATALOG (69,000+ MOVIES)
 // ===============================
 export async function searchMovies(
   searchOrOptions = "",

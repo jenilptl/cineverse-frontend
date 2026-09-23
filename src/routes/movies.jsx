@@ -74,13 +74,15 @@ const LANGUAGE_OPTIONS = [
   { value: "zh", label: "Chinese (zh)" },
   { value: "cn", label: "Cantonese (cn)" },
   { value: "fa", label: "Persian / Iranian (fa)" },
+  { value: "ur", label: "Urdu (ur)" },
+  { value: "bho", label: "Bhojpuri (bho)" },
 ];
 
 function MoviesPage() {
   const [filters, setFilters] = useState(defaultFilters);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [totalCount, setTotalCount] = useState(61341);
+  const [totalCount, setTotalCount] = useState(69405);
   const [moviesList, setMoviesList] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -205,7 +207,7 @@ function MoviesPage() {
               <input
                 type="text"
                 className="catalog-search-input"
-                placeholder="Search across 61,000+ movies by title or keyword..."
+                placeholder="Search across 69,000+ movies by title or keyword..."
                 value={filters.search}
                 onChange={(e) => updateFilter("search", e.target.value)}
               />
