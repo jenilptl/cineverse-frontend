@@ -1,0 +1,126 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  Outlet,
+  Link,
+  createRootRouteWithContext,
+  useRouter,
+  HeadContent,
+  Scripts,
+} from "@tanstack/react-router";
+import { type ReactNode } from "react";
+import { FilmTrackerProvider } from "../context/FilmTrackerContext";
+import { Toaster } from "sonner";
+
+import appCss from "../styles.css?url";
+
+function NotFoundComponent() {
+  return (
+    <div className="route-state">
+      <div>
+        <h1>404</h1>
+        <h2>Page not found</h2>
+        <p>
+          The page you're looking for doesn't exist or has been moved.
+        </p>
+        <div>
+          <Link
+            to="/"
+            className="route-state-link"
+          >
+            Go home
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ErrorComponent({ reset }: { error: Error; reset: () => void }) {
+  const router = useRouter();
+
+  return (
+    <div className="route-state">
+      <div>
+        <h1>
+          This page didn't load
+        </h1>
+        <p>
+          Something went wrong on our end. You can try refreshing or head back home.
+        </p>
+        <div className="route-state-actions">
+          <button
+            onClick={() => {
+              router.invalidate();
+              reset();
+            }}
+            className="route-state-link"
+          >
+            Try again
+          </button>
+          <a
+            href="/"
+            className="route-state-link route-state-link-secondary"
+          >
+            Go home
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+  head: () => ({
+    meta: [
+      { charSet: "utf-8" },
+      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { title: "ReelMind — Movie Recommendations" },
+      { name: "description", content: "Search movies and explore machine-learning recommendations in a simple cinema-inspired interface." },
+      { name: "author", content: "ReelMind" },
+      { property: "og:title", content: "ReelMind — Movie Recommendations" },
+      { property: "og:description", content: "A friendly movie search and recommendation interface for a clustering project." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:site", content: "@ReelMind" },
+    ],
+    links: [
+      {
+        rel: "stylesheet",
+        href: appCss,
+      },
+      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+    ],
+  }),
+  shellComponent: RootShell,
+  component: RootComponent,
+  notFoundComponent: NotFoundComponent,
+  errorComponent: ErrorComponent,
+});
+
+function RootShell({ children }: { children: ReactNode }) {
+  return (
+    <html lang="en">
+      <head>
+        <HeadContent />
+      </head>
+      <body>
+        {children}
+        <Scripts />
+      </body>
+    </html>
+  );
+}
+
+function RootComponent() {
+  const { queryClient } = Route.useRouteContext();
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <FilmTrackerProvider>
+        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+        <Outlet />
+        <Toaster richColors position="bottom-right" theme="dark" />
+      </FilmTrackerProvider>
+    </QueryClientProvider>
+  );
+}
